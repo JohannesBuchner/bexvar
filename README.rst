@@ -22,12 +22,14 @@ active galactic nuclei.
 Methods
 --------------
 
-This repository provides statistical analysis methods, which can deal with
+This repository provides new statistical analysis methods for light curves.
+They can deal with
 
- * very low count statistics (0 or a few counts per time bin)
- * backgrounds, which may vary as well, measured simultaneously in an 'off' region.
+* very low count statistics (0 or a few counts per time bin)
+* (potentially variable) instrument sensitivity
+* (potentially variable) backgrounds, measured simultaneously in an 'off' region.
 
-The tools analyse eROSITA light curves. Contributions that can read other
+The tools can read eROSITA light curves. Contributions that can read other
 file formats are welcome.
 
 The `bexvar_ero.py` tool computes posterior distributions on the Bayesian excess variance,
@@ -65,14 +67,16 @@ Run with::
 
 	$ bexvar_ero.py 020_LightCurve_00001.fits
 
+Run with::
+
+	$ quick_ero.py 020_LightCurve_*.fits.gz
+
 
 Contributing
 --------------
 
-Contributions are welcome.
-
-A simple improvement would be to
-be able to read light curves from other missions (XMM, Chandra, NICER).
+Contributions are welcome. Please open pull requests
+with code contributions, or issues for bugs and questions.
 
 Contributors include:
 
