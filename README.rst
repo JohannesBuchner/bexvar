@@ -67,7 +67,7 @@ Run with::
 
 	$ bexvar_ero.py 020_LightCurve_00001.fits
 
-Run with::
+Run simpler variability analyses with::
 
 	$ quick_ero.py 020_LightCurve_*.fits.gz
 
