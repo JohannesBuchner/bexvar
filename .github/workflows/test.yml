@@ -20,10 +20,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install coveralls rst2html5 cython
           if [ -f conda-requirements.txt ]; then pip install -r conda-requirements.txt; fi 
-      - run: python3 setup.py install
-      - run: coverage -a scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
-      - run: coverage -a scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
-      - run: coverage -a experimental/cplar_ero.py examples/red/020_LightCurve_00001.fits.gz
-      - run: coverage -a experimental/periodic_ero.py examples/constant/020_LightCurve_00001.fits.gz
+      - run: python setup.py install
+      - run: coverage run -a scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
+      - run: coverage run -a scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
+      - run: coverage run -a experimental/cplar_ero.py examples/red/020_LightCurve_00001.fits.gz
+      - run: coverage run -a experimental/periodic_ero.py examples/constant/020_LightCurve_00001.fits.gz
       - run: coveralls
       - run: make docs
