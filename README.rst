@@ -30,10 +30,10 @@ This repository provides statistical analysis methods, which can deal with
 The tools analyse eROSITA light curves. Contributions that can read other
 file formats are welcome.
 
-The bexvar_ero.py tool computes posterior distributions on the Bayesian excess variance,
+The `bexvar_ero.py` tool computes posterior distributions on the Bayesian excess variance,
 and source count rate.
 
-quick_ero.py computes simpler statistics, including Bayesian blocks,
+`quick_ero.py` computes simpler statistics, including Bayesian blocks,
 fraction variance, the normalised excess variance, and 
 the amplitude maximum deviation statistics.
 
@@ -63,10 +63,18 @@ Example
 
 Run with::
 
-	$ python3 bexvar_ero.py 020_LightCurve_00001.fits
+	$ bexvar_ero.py 020_LightCurve_00001.fits
 
-Contributors
--------------
+
+Contributing
+--------------
+
+Contributions are welcome.
+
+A simple improvement would be to
+be able to read light curves from other missions (XMM, Chandra, NICER).
+
+Contributors include:
 
 * Johannes Buchner
 * David Bogensberger
