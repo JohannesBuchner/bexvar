@@ -2,3 +2,4 @@ numpy
 scipy
 ultranest
 astropy
+tqdm
