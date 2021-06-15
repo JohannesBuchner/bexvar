@@ -41,7 +41,9 @@ install:
 
 script:
   - make docs
-  - posteriorstacker.py --help
-  - load_ultranest_outputs.py --help
+  - coverage -a scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
+  - coverage -a scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
+  - coverage -a experimental/cplar_ero.py examples/red/020_LightCurve_00001.fits.gz
+  - coverage -a experimental/periodic_ero.py examples/constant/020_LightCurve_00001.fits.gz
 
 after_success: coveralls

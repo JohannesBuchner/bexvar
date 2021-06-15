@@ -54,8 +54,9 @@ coverage: ## check code coverage quickly with the default Python
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
-#doc: ## generate Sphinx HTML documentation, including API docs
-#	python3 tutorial/run.py && rst2html5.py README.rst > README.html
+doc: ## generate Sphinx HTML documentation, including API docs
+	# python3 tutorial/run.py
+	rst2html5.py README.rst > README.html
 
 release: dist ## package and upload a release
 	twine upload -s dist/*.tar.gz
