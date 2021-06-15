@@ -4,7 +4,7 @@ Given an eROSITA SRCTOOL light curve, computes various variability statistics.
 
 Run as:
 
-$ python bexvar_ero.py 020_LightCurve_00001.fits
+$ python quick_ero.py 020_LightCurve_00001.fits
 
 """
 
@@ -13,6 +13,9 @@ import numpy as np
 import sys
 from astropy.table import Table
 from astropy.stats import bayesian_blocks
+
+__version__ = '1.0.0'
+__author__ = 'Johannes Buchner'
 
 def calc_Fvar(flux, flux_err):
     assert flux.shape == flux_err.shape

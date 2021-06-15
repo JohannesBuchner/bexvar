@@ -59,6 +59,9 @@ import scipy.stats, scipy.optimize
 import sys
 from astropy.table import Table
 
+__version__ = '1.0.0'
+__author__ = 'Johannes Buchner'
+
 # 1-sigma quantiles and median
 quantiles = scipy.stats.norm().cdf([-1, 0, 1])
 
