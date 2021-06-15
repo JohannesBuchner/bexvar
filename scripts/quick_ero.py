@@ -14,7 +14,7 @@ import sys
 from astropy.table import Table
 from astropy.stats import bayesian_blocks
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 __author__ = 'Johannes Buchner'
 
 def calc_Fvar(flux, flux_err):

@@ -50,5 +50,5 @@ setup(
     scripts=['scripts/bexvar_ero.py', 'scripts/quick_ero.py'],
     setup_requires=setup_requirements,
     url='https://github.com/JohannesBuchner/bexvar',
-    version='1.0.0',
+    version='1.0.1',
 )

@@ -59,7 +59,7 @@ import scipy.stats, scipy.optimize
 import sys
 from astropy.table import Table
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 __author__ = 'Johannes Buchner'
 
 # 1-sigma quantiles and median
