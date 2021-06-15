@@ -32,8 +32,8 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
-#clean-doc:
-#	rm -rf data.txt posteriorsamples.txt* README.html posteriors_x1.txt.gz 
+clean-doc:
+	rm -rf README.html
 
 #lint: ## check style with flake8
 #	flake8 snowline tests
