@@ -47,8 +47,8 @@ Install
 .. image:: https://img.shields.io/pypi/v/bexvar.svg
         :target: https://pypi.python.org/pypi/bexvar
 
-.. image:: https://travis-ci.com/JohannesBuchner/bexvar.svg?branch=main
-    :target: https://travis-ci.com/JohannesBuchner/bexvar
+.. image:: https://github.com/JohannesBuchner/bexvar/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/JohannesBuchner/bexvar/actions/workflows/test.yml
 
 Install as usual::
 
