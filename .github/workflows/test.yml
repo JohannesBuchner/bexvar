@@ -15,4 +15,5 @@ jobs:
         run: |
           ls ${{ github.workspace }}
       - run: echo "🍏 This job's status is ${{ job.status }}."
-      - run: pip3 install coveralls rst2html5 -r conda-requirements.txt
+      - run: pip3 install coveralls rst2html5 cython
+      - run: pip3 install -r conda-requirements.txt
