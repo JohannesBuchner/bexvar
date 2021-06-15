@@ -47,7 +47,7 @@ setup(
     long_description=readme + '\n\n' + history,
     keywords='bexvar',
     name='bexvar',
-    scripts=['bexvar_ero.py', 'quick_ero.py'],
+    scripts=['scripts/bexvar_ero.py', 'scripts/quick_ero.py'],
     setup_requires=setup_requirements,
     url='https://github.com/JohannesBuchner/bexvar',
     version='1.0.0',
