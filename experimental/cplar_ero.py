@@ -219,7 +219,7 @@ for band in range(nbands):
     plt.xlabel('Time')
     plt.ylabel('Count rate [cts/s]')
     #plt.ylim(1e-4, None)
-    plt.savefig(prefix + '.pdf', bbox_inches='tight')
+    plt.savefig(prefix + '_t.pdf', bbox_inches='tight')
     plt.close()
 
 
@@ -252,6 +252,5 @@ for band in range(nbands):
     plt.vlines([omega0, omega1], ylo, yhi, ls='--', color='k', alpha=0.5)
     plt.ylim(ylo, yhi)
     #plt.xlim(2 / (N * T), 1000 * 2 / (N * T))
-    plt.savefig(prefix + 'plar1b_F.pdf', bbox_inches='tight')
+    plt.savefig(prefix + '_F.pdf', bbox_inches='tight')
     plt.close()
-    break

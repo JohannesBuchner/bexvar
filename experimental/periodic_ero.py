@@ -14,7 +14,7 @@ The model is:
 
 Example:
 
-$ python qpe_ero.py 020_LightCurve_00001.fits
+$ python periodic_ero.py 020_LightCurve_00001.fits
 
 It will make a few visualisations and a file containing the resulting parameters.
 
@@ -159,7 +159,7 @@ import ultranest.stepsampler
 sampler = ReactiveNestedSampler(parameter_names, loglike, transform=transform, 
     log_dir=outprefix, resume=True)
 sampler.stepsampler = ultranest.stepsampler.RegionSliceSampler(nsteps=40, max_nsteps=40, adaptive_nsteps='move-distance')
-samples = sampler.run()['samples']
+samples = sampler.run(frac_remain=0.5)['samples']
 print("running qpe... done")
 
 print("plotting ...")

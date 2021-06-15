@@ -79,9 +79,9 @@ def lscg_gen(src_counts, bkg_counts, bkg_area, fracexp, density_gp):
     m1 = np.log10(max(scipy.special.gammaincinv(src_counts/fracexp + 1, 0.999)))
     
     if m0 - 0.05 * (m1-m0) < -1:
-        log_src_crs_grid = np.linspace(-1.0, m1 + 0.05*(m1 - m0), np.ceil(density_gp * (m1 + 0.05*(m1 - m0) + 1.0)))
+        log_src_crs_grid = np.linspace(-1.0, m1 + 0.05*(m1 - m0), int(np.ceil(density_gp * (m1 + 0.05*(m1 - m0) + 1.0))))
     else:
-        log_src_crs_grid = np.linspace(m0 - 0.05 * (m1 - m0), m1 + 0.05 * (m1 - m0), np.ceil(density_gp * 1.05 * (m1 - m0)))
+        log_src_crs_grid = np.linspace(m0 - 0.05 * (m1 - m0), m1 + 0.05 * (m1 - m0), int(np.ceil(density_gp * 1.05 * (m1 - m0))))
 
     return log_src_crs_grid
 
