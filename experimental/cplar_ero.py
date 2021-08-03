@@ -84,7 +84,7 @@ model {
   for (i in 1:N) {
     logytot[i] = log_sum_exp(logysrcarea[i], logybkgarea[i]);
   }
-  
+
   logBy ~ normal(prior_logBc_mean, prior_logBc_std);
   B_obs ~ poisson_log(logBy + logBcountrate_conversion);
 
@@ -125,24 +125,43 @@ for band in range(nbands):
     data = dict(
         # provide observations
         N=N, z_obs=c, B_obs=bc.astype(int),
-        # additional information about the sampling: 
+        # additional information about the sampling:
         dt=dt, Barearatio=1. / bgarea, Nsteps=Nsteps.astype(int),
         # source count rate is modulated by fracexp
         countrate_conversion=rate_conversion,
         # background count rate is modulated by fracexp, except in the hard band,
         # where it is assumed constant (particle background dominated)
         Bcountrate_conversion=rate_conversion*0 + 1 if band == 2 else rate_conversion,
-        prior_logBc_mean=0, prior_logBnoise_mean=0,
-        prior_logBc_std=1, prior_logBnoise_std=3,
-        prior_logc_mean=0, prior_lognoise_mean=0,
-        prior_logc_std=5, prior_lognoise_std=3,
-        #prior_logtau_mean=np.log(dt), prior_logtau_std=np.log(x.max() / (dt)),
+        # background count rates expected:
+        prior_logBc_mean=0, prior_logBc_std=np.log(10),
+        # source count rates expected:
+        prior_logc_mean=0, prior_logc_std=5,
+        # expected noise level is 100% +- 2 dex
+        prior_lognoise_mean=np.log(1), prior_lognoise_std=np.log(100),
+        #prior_logtau_mean=np.log(x.max()), prior_logtau_std=np.log(x.max() / (dt)),
         prior_logtau_mean=np.log(x.max()), prior_logtau_std=np.log(100),
     )
+
+    def init_function(chain=None):
+        # guess good parameters for chain to start
+        return dict(
+            # start with short time-scales: all bins independent
+            logtau=np.log(dt / 2),
+            # background count rates estimated from background counts
+            logBy=np.log((bc + 1) / data['Bcountrate_conversion']),
+            # count rate estimated from counts
+            logc=np.log((c + 1) / data['countrate_conversion']).mean(),
+            # minimal noise
+            lognoise=np.log(0.001),
+            W=np.random.normal(size=N),
+        )
+
     # print(c, bc.astype(int), bgarea, rate_conversion, Nsteps.astype(int), dt)
 
     # Continuous Poisson Log-Auto-Regressive 1 with Background
-    results = stan_utility.sample_model(model, data, outprefix=prefix, control=dict(adapt_delta=0.99, max_treedepth=12))
+    results = stan_utility.sample_model(model, data, outprefix=prefix,
+        control=dict(adapt_delta=0.99, max_treedepth=12),
+        init=init_function, seed=42)
       #control=dict(max_treedepth=14))
 
     la = stan_utility.get_flat_posterior(results)
@@ -156,7 +175,7 @@ for band in range(nbands):
     print("priors:")
     for k, v in sorted(data.items()):
         if k.startswith('prior'):
-            print("%20s: " % k, v)
+            print("%20s: " % k, v / log(10) if k.startswith('log') else v)
 
     print("posteriors:")
     for k in sorted(la.keys()):
