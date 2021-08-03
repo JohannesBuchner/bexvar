@@ -22,6 +22,8 @@ active galactic nuclei.
 Methods
 --------------
 
+paper: https://arxiv.org/abs/2106.14529
+
 This repository provides new statistical analysis methods for light curves.
 They can deal with
 
@@ -47,10 +49,16 @@ Install
 --------
 
 .. image:: https://img.shields.io/pypi/v/bexvar.svg
-        :target: https://pypi.python.org/pypi/bexvar
+    :target: https://pypi.python.org/pypi/bexvar
 
 .. image:: https://github.com/JohannesBuchner/bexvar/actions/workflows/test.yml/badge.svg
     :target: https://github.com/JohannesBuchner/bexvar/actions/workflows/test.yml
+
+.. image:: https://img.shields.io/badge/astroph.HE-arXiv%3A2106.14529-B31B1B.svg
+    :target: https://arxiv.org/abs/2106.14529
+    :alt: Publication
+
+
 
 Install as usual::
 
@@ -82,3 +90,5 @@ Contributors include:
 
 * Johannes Buchner
 * David Bogensberger
+
+If you use this software, please cite this paper: https://arxiv.org/abs/2106.14529
