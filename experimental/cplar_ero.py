@@ -89,7 +89,7 @@ model {
   B_obs ~ poisson_log(logBy + logBcountrate_conversion);
 
   // source AR process priors:
-  logtau ~ normal(prior_logtau_mean, prior_logtau_std);
+  logtau ~ student_t(2, prior_logtau_mean, prior_logtau_std);
   logc ~ normal(prior_logc_mean, prior_logc_std);
   lognoise ~ normal(prior_lognoise_mean, prior_lognoise_std);
   W ~ std_normal();
