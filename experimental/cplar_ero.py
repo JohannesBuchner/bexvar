@@ -25,14 +25,13 @@ data {
   vector[N] Bcountrate_conversion;
 
   real prior_logBc_mean;
-  real prior_logBnoise_mean;
   real prior_logBc_std;
-  real prior_logBnoise_std;
   real prior_logc_mean;
   real prior_lognoise_mean;
   real prior_logc_std;
   real prior_lognoise_std;
-
+  real prior_logtau_mean;
+  real prior_logtau_std;
 }
 transformed data {
   vector[N] logBarearatio = log(Barearatio);
@@ -44,7 +43,7 @@ transformed data {
 }
 parameters {
   // regression time-scale
-  real<lower=log(dt / 10),upper=log(10*T)> logtau;
+  real logtau;
   // mean
   real logc;
   // sigma
@@ -52,14 +51,8 @@ parameters {
   // unit normal noise deviations
   vector[N] W;
 
-  // regression time-scale
-  real<lower=log(dt / 10),upper=log(10*T)> logBtau;
-  // mean
-  real logBc;
-  // sigma
-  real logBnoise;
-  // unit normal noise deviations
-  vector[N] BW;
+  // intrinsic background count rate at each time bin
+  vector[N] logBy;
 }
 transformed parameters {
   // linear transformations of the log parameters
@@ -70,31 +63,16 @@ transformed parameters {
   // intrinsic source count rate at each time bin
   vector[N] logy;
 
-  //real Bphi;
-  real Btau;
-  real Bnoise;
-  real Bc;
-  // intrinsic background count rate at each time bin
-  vector[N] logBy;
-
   // transform parameters to linear space
   tau = exp(logtau);
-  Btau = exp(logBtau);
   noise = exp(lognoise);
-  Bnoise = exp(logBnoise);
   c = exp(logc);
-  Bc = exp(logBc);
   phi = exp(-dt / tau);
-  //Bphi = exp(-dt / Btau);
 
   // apply centering to real units, AR(1) formulas:
   logy[1] = logc + W[1] * noise;
-  logBy[1] = logBc + BW[1] * Bnoise;
   for (i in 2:N) {
-    // mean, dampened random walk term, and noise term
-    logBy[i] = logBc + exp(-dt * Nsteps[i-1] / Btau) * (logBy[i-1] - logBc) + BW[i] * exp(logBnoise) * Nsteps[i-1];
-    //logBy[i] = logBc + BW[i] * Bnoise;
-    logy[i] = logc + exp(-dt * Nsteps[i-1] / tau) * (logy[i-1] - logc) + W[i] * exp(lognoise) * Nsteps[i-1];
+    logy[i] = logc + exp(-dt * Nsteps[i-1] / tau) * (logy[i-1] - logc) + W[i] * noise * Nsteps[i-1];
   }
 }
 model {
@@ -107,18 +85,11 @@ model {
     logytot[i] = log_sum_exp(logysrcarea[i], logybkgarea[i]);
   }
   
-  // background AR process priors:
-  // logBtau ~ normal(logT, 10 * logT / logminduration);
-  //Btau ~ uniform(dt, 10 * T);
-  logBc ~ normal(prior_logBc_mean, prior_logBc_std);
-  logBnoise ~ normal(prior_logBnoise_mean, prior_logBnoise_std);
-  BW ~ std_normal();
-  // comparison to background counts
+  logBy ~ normal(prior_logBc_mean, prior_logBc_std);
   B_obs ~ poisson_log(logBy + logBcountrate_conversion);
 
   // source AR process priors:
-  // logtau ~ normal(logT, 10 * logT / logminduration);
-  // tau ~ uniform(dt, 10 * T);
+  logtau ~ normal(prior_logtau_mean, prior_logtau_std);
   logc ~ normal(prior_logc_mean, prior_logc_std);
   lognoise ~ normal(prior_lognoise_mean, prior_lognoise_std);
   W ~ std_normal();
@@ -144,9 +115,7 @@ for band in range(nbands):
     bgarea = 1. / lc['BACKRATIO']
     fe = lc['FRACEXP'][:,band]
     rate_conversion = fe * lc['TIMEDEL']
-    dt = np.unique(lc['TIMEDEL'])
-    assert len(dt) == 1
-    dt = dt[0]
+    dt = np.min(x[1:] - x[:-1])
     Nsteps = (x[1:] - x[:-1]) / dt
     assert (Nsteps.astype(int) == Nsteps).all()
     assert (bc.astype(int) == bc).all(), bc
@@ -164,14 +133,17 @@ for band in range(nbands):
         # where it is assumed constant (particle background dominated)
         Bcountrate_conversion=rate_conversion*0 + 1 if band == 2 else rate_conversion,
         prior_logBc_mean=0, prior_logBnoise_mean=0,
-        prior_logBc_std=10, prior_logBnoise_std=3,
+        prior_logBc_std=1, prior_logBnoise_std=3,
         prior_logc_mean=0, prior_lognoise_mean=0,
-        prior_logc_std=10, prior_lognoise_std=3,
+        prior_logc_std=5, prior_lognoise_std=3,
+        #prior_logtau_mean=np.log(dt), prior_logtau_std=np.log(x.max() / (dt)),
+        prior_logtau_mean=np.log(x.max()), prior_logtau_std=np.log(100),
     )
     # print(c, bc.astype(int), bgarea, rate_conversion, Nsteps.astype(int), dt)
 
     # Continuous Poisson Log-Auto-Regressive 1 with Background
-    results = stan_utility.sample_model(model, data, outprefix=prefix, control=dict(max_treedepth=16))
+    results = stan_utility.sample_model(model, data, outprefix=prefix, control=dict(adapt_delta=0.99, max_treedepth=12))
+      #control=dict(max_treedepth=14))
 
     la = stan_utility.get_flat_posterior(results)
     samples = []
@@ -181,6 +153,12 @@ for band in range(nbands):
     # remove linear parameters, only show log:
     badlist += [k.replace('log', '') for k in la.keys() if 'log' in k and k.replace('log', '') in la.keys()]
 
+    print("priors:")
+    for k, v in sorted(data.items()):
+        if k.startswith('prior'):
+            print("%20s: " % k, v)
+
+    print("posteriors:")
     for k in sorted(la.keys()):
         print('%20s: %.4f +- %.4f' % (k, la[k].mean(), la[k].std()))
         if k not in badlist and la[k].ndim == 1:
@@ -227,8 +205,10 @@ for band in range(nbands):
     #xf = np.linspace(0, 1.0 / (2.0 * T), 10000)
     #omega = 2 * pi * xf * T
     omega = np.linspace(0, 10. / dt, 10000)
+    # longest duration
     omega1 = 1. / x.max()
-    omega0 = 1. / dt
+    # Nyquist frequency: twice the bin duration
+    omega0 = 1. / (2 * dt)
 
     pband2 = PredictionBand(omega)
 
@@ -237,7 +217,6 @@ for band in range(nbands):
         gamma = dt / tausample
         specdens = (2 * pi)**0.5 * sigma**2 / (1 - phi**2) * gamma / (pi * (gamma**2 + omega**2))
         pband2.add(specdens)
-        
 
     pband2.line(color='r')
     pband2.shade(color='r', alpha=0.5)
