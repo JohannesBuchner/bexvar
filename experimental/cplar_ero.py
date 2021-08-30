@@ -109,13 +109,16 @@ nbands = lc_all['COUNTS'].shape[1]
 for band in range(nbands):
     print("band %d" % band)
     lc = lc_all[lc_all['FRACEXP'][:,band] > 0.1]
-    x = lc['TIME'] - lc['TIME'][0]
     bc = lc['BACK_COUNTS'][:,band]
     c = lc['COUNTS'][:,band]
     bgarea = 1. / lc['BACKRATIO']
     fe = lc['FRACEXP'][:,band]
-    rate_conversion = fe * lc['TIMEDEL']
-    dt = np.min(x[1:] - x[:-1])
+    # length of the time bin
+    dt = lc['TIMEDEL']
+    # TIME is the mid point of the light curve bin
+    # here we want the starting point:
+    x = lc['TIME'] - lc['TIME'][0] - lc['TIMEDEL'] / 2.0
+    rate_conversion = fe * dt
     Nsteps = (x[1:] - x[:-1]) / dt
     assert (Nsteps.astype(int) == Nsteps).all()
     assert (bc.astype(int) == bc).all(), bc
