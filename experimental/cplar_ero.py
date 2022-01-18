@@ -22,6 +22,9 @@ import sys
 import tqdm
 from astropy.table import Table
 import stan_utility
+from brokenaxes import brokenaxes
+import corner
+from ultranest.plot import PredictionBand
 
 
 model = stan_utility.compile_model_code("""
@@ -202,32 +205,40 @@ badlist = ['lp__', 'phi', 'Bphi']
 # remove linear parameters, only show log:
 badlist += [k.replace('log', '') for k in la.keys() if 'log' in k and k.replace('log', '') in la.keys()]
 
-from ultranest.plot import PredictionBand
-plt.figure(figsize=(10, 5))
-plt.plot(x, c / rate_conversion, 'o ')
-plt.plot(x, bc / bgarea / rate_conversion, 'o ')
-pband = PredictionBand(x)
-for ysample in tqdm.tqdm(np.exp(results.posterior.logy.values.reshape((-1, N)))):
-    pband.add(ysample)
+for broken in False, True:
 
-pband.line(color='k')
-pband.shade(color='k', alpha=0.5)
-pband.shade(q=0.495, color='k', alpha=0.1)
+    fig = plt.figure(figsize=(15, 5))
 
-pband = PredictionBand(x)
-for ysample in tqdm.tqdm(np.exp(results.posterior.logBy.values.reshape((-1, N)))):
-    pband.add(ysample / bgarea)
-
-pband.line(color='orange')
-pband.shade(color='orange', alpha=0.5)
-pband.shade(q=0.495, color='orange', alpha=0.1)
-
-plt.yscale('log')
-plt.xlabel('Time')
-plt.ylabel('Count rate [cts/s]')
-plt.ylim(min(((bc + 0.1) / bgarea / rate_conversion).min(), ((c + 0.1) / rate_conversion).min()) / 10, None)
-plt.savefig(prefix + '_t.pdf', bbox_inches='tight')
-plt.close()
+    if broken:
+        # find wide gaps in the light curves:
+        typical_step = max(np.median(tsteps), dt * 5)
+        i, = np.where(tsteps > typical_step * 20)
+        xlims = list(zip([x_start[0] - typical_step] + list(x_start[i+1] + typical_step), list(x_end[i] - typical_step) + [x_end[-1] + typical_step]))
+        bax = brokenaxes(xlims=xlims, hspace=0.05)
+    else:
+        bax = plt.gca()
+    bax.plot(x, c / rate_conversion, 'o ')
+    bax.plot(x, bc / bgarea / rate_conversion, 'o ')
+    y = np.exp(results.posterior.logy.values.reshape((-1, N)))
+    bax.errorbar(
+        x=x, xerr=dt, 
+        y=np.median(y, axis=0),
+        yerr=np.quantile(y, [0.005, 0.995], axis=0),
+        color='k', ls=' ', elinewidth=0.1, capsize=0,
+    )
+    By = np.exp(results.posterior.logBy.values.reshape((-1, N))) / bgarea
+    bax.errorbar(
+        x=x, xerr=dt, 
+        y=np.median(By, axis=0),
+        yerr=np.quantile(By, [0.005, 0.995], axis=0),
+        color='orange', ls=' ', elinewidth=0.1, capsize=0,
+    )
+    bax.set_yscale('log')
+    bax.set_xlabel('Time')
+    bax.set_ylabel('Count rate [cts/s]')
+    bax.set_ylim(min(((bc + 0.1) / bgarea / rate_conversion).min(), ((c + 0.1) / rate_conversion).min()) / 10, None)
+    fig.savefig(prefix + '_t%s.pdf' % ('_broken' if broken else ''), bbox_inches='tight')
+    plt.close(fig)
 
 
 print("priors:")
@@ -252,7 +263,6 @@ for k in sorted(la.keys()):
         
 samples = np.transpose(samples)
 print(paramnames)
-import corner
 corner.corner(samples, labels=paramnames)
 plt.savefig(prefix + "_corner_log.pdf", bbox_inches='tight')
 plt.close()
