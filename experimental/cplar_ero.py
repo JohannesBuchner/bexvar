@@ -16,8 +16,7 @@ sigma, tau and the mean count rate (c) are the most important parameters of this
 
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy import log, pi, cos, exp
-import scipy.fftpack
+from numpy import log, pi, exp
 import sys
 import tqdm
 from astropy.table import Table
@@ -34,7 +33,7 @@ data {
   // duration of time bin
   real dt;
   // number of time step between end of previous time bin and end of current time bin
-  // this may be different from one when there are gaps
+  // this may be different from dt when there are gaps
   real<lower=0> tsteps[N-1];
   int<lower=0> z_obs[N];
   int<lower=0> B_obs[N];
@@ -48,8 +47,6 @@ data {
   real prior_lognoise_mean;
   real prior_logc_std;
   real prior_lognoise_std;
-  real prior_logtau_mean;
-  real prior_logtau_std;
 }
 transformed data {
   vector[N] logBarearatio = log(Barearatio);
@@ -60,8 +57,8 @@ transformed data {
   real logT = log(T);
 }
 parameters {
-  // regression time-scale
-  real logtau;
+  // auto-regression time-scale
+  real<lower=log(dt / 10), upper=log(10 * T)> logtau;
   // mean
   real logc;
   // sigma
@@ -107,7 +104,7 @@ model {
   B_obs ~ poisson_log(logBy + logBcountrate_conversion);
 
   // source AR process priors:
-  logtau ~ student_t(2, prior_logtau_mean, prior_logtau_std);
+  // logtau ~ student_t(2, prior_logtau_mean, prior_logtau_std);
   logc ~ normal(prior_logc_mean, prior_logc_std);
   lognoise ~ normal(prior_lognoise_mean, prior_lognoise_std);
   logy ~ normal(0, 5); // stay within a reasonable range
@@ -125,9 +122,10 @@ filename = sys.argv[1]
 
 lc_all = Table.read(filename, hdu='RATE', format='fits')
 nbands = lc_all['COUNTS'].shape[1]
-band = 0
 if len(sys.argv) > 2:
     band = int(sys.argv[2])
+else:
+    band = 0
 
 print("band %d" % band)
 lc = lc_all[lc_all['FRACEXP'][:,band] > 0.1]
@@ -149,6 +147,7 @@ assert (bc.astype(int) == bc).all(), bc
 prefix = sys.argv[1] + '-%d-cplar1b' % band
 fe = lc['FRACEXP'][:,band]
 rate_conversion = fe * dt
+#print("tsteps:", tsteps.sum())
 
 N = len(x_start)
 data = dict(
@@ -168,7 +167,12 @@ data = dict(
     # expected noise level is 10% +- 2 dex
     prior_lognoise_mean=np.log(0.1), prior_lognoise_std=np.log(100),
     #prior_logtau_mean=np.log(x.max()), prior_logtau_std=np.log(x.max() / (dt)),
-    prior_logtau_mean=np.log(dt), prior_logtau_std=np.log(100),
+    # prefer long correlation time-scales; the data have to convince us that the
+    # data points scatter.
+    # prior_logtau_mean=np.log(x.max()), prior_logtau_std=10 * np.log(x.max() / dt),
+    # prefer short correlation time-scales; the data have to convince us that the
+    # data points are similar.
+    #prior_logtau_mean=np.log(dt), prior_logtau_std=np.log(1000),
 )
 
 def init_function(chain=None):
@@ -205,13 +209,14 @@ badlist = ['lp__', 'phi', 'Bphi']
 # remove linear parameters, only show log:
 badlist += [k.replace('log', '') for k in la.keys() if 'log' in k and k.replace('log', '') in la.keys()]
 
+typical_step = max(np.median(tsteps), dt * 5)
+
 for broken in False, True:
 
     fig = plt.figure(figsize=(15, 5))
 
     if broken:
         # find wide gaps in the light curves:
-        typical_step = max(np.median(tsteps), dt * 5)
         i, = np.where(tsteps > typical_step * 20)
         xlims = list(zip([x_start[0] - typical_step] + list(x_start[i+1] + typical_step), list(x_end[i] - typical_step) + [x_end[-1] + typical_step]))
         bax = brokenaxes(xlims=xlims, hspace=0.05)
@@ -244,12 +249,14 @@ for broken in False, True:
 print("priors:")
 for k, v in sorted(data.items()):
     if k.startswith('prior'):
+        # convert to base 10 for easier reading
         print("%20s: " % k, v / log(10) if k.startswith('log') else v)
 
 print("posteriors:")
 for k in sorted(la.keys()):
     print('%20s: %.4f +- %.4f' % (k, la[k].mean(), la[k].std()))
     if k not in badlist and la[k].ndim == 1:
+        # convert to base 10 for easier reading
         samples.append(la[k] / log(10) if k.startswith('log') else la[k])
         paramnames.append(k)
     elif la[k].ndim > 1:
@@ -266,7 +273,7 @@ print(paramnames)
 corner.corner(samples, labels=paramnames)
 plt.savefig(prefix + "_corner_log.pdf", bbox_inches='tight')
 plt.close()
-corner.corner(np.exp(samples), labels=[k.replace('log', '') for k in paramnames])
+corner.corner(10**(samples), labels=[k.replace('log', '') for k in paramnames])
 plt.savefig(prefix + "_corner.pdf", bbox_inches='tight')
 plt.close()
 
