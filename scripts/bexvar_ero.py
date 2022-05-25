@@ -68,23 +68,34 @@ quantiles = scipy.stats.norm().cdf([-1, 0, 1])
 N = 1000
 M = 1000
 
-def lscg_gen(src_counts, bkg_counts, bkg_area, fracexp, density_gp):
+def lscg_gen(src_counts, bkg_counts, bkg_area, rate_conversion, density_gp):
     """ 
     Generates a log_src_crs_grid applicable to this particular light curve, 
     with appropriately designated limits, for a faster and more accurate 
     run of estimate_source_cr_marginalised and bexvar 
     """
-    a, b = scipy.special.gammaincinv(src_counts/fracexp + 1, 0.001), scipy.special.gammaincinv(bkg_counts / (fracexp * bkg_area) + 1, 0.999)
-    if min(a - b) < 0:
+    # lowest count rate
+    a = scipy.special.gammaincinv(src_counts + 1, 0.001) / rate_conversion
+    # highest background count rate
+    b = scipy.special.gammaincinv(bkg_counts + 1, 0.999) / (rate_conversion * bkg_area)
+    mindiff = min(a - b)
+    if mindiff > 0: # background-subtracted rate is positive
+        m0 = np.log10(mindiff)
+    else: # more background than source -> subtraction negative somewhere
         m0 = -1
+    # highest count rate (including background)
+    c = scipy.special.gammaincinv(src_counts + 1, 0.999) / rate_conversion
+    m1 = np.log10(c.max())
+    # print(src_counts, bkg_counts, a, b, m0, m1)
+
+    # add a bit of padding to the bottom and top
+    lo = m0 - 0.05 * (m1 - m0)
+    hi = m1 + 0.05 * (m1 - m0)
+    span = hi - lo
+    if lo < -1:
+        log_src_crs_grid = np.linspace(-1.0, hi, int(np.ceil(density_gp * (hi + 1.0))))
     else:
-        m0 = np.log10(min(a - b))
-    m1 = np.log10(max(scipy.special.gammaincinv(src_counts/fracexp + 1, 0.999)))
-    
-    if m0 - 0.05 * (m1-m0) < -1:
-        log_src_crs_grid = np.linspace(-1.0, m1 + 0.05*(m1 - m0), int(np.ceil(density_gp * (m1 + 0.05*(m1 - m0) + 1.0))))
-    else:
-        log_src_crs_grid = np.linspace(m0 - 0.05 * (m1 - m0), m1 + 0.05 * (m1 - m0), int(np.ceil(density_gp * 1.05 * (m1 - m0))))
+        log_src_crs_grid = np.linspace(lo, hi, int(np.ceil(density_gp * 1.05 * span)))
 
     return log_src_crs_grid
 
@@ -103,8 +114,8 @@ def estimate_source_cr_marginalised(log_src_crs_grid, src_counts, bkg_counts, bk
         return like
     
     weights = np.array([prob(log_src_cr) for log_src_cr in log_src_crs_grid])
-    if weights.sum() == 0:
-        print(np.log10(src_counts.max() / rate_conversion))
+    if not weights.sum() > 0:
+        print("WARNING: Weight problem! sum is", weights.sum(), np.log10(src_counts.max() / rate_conversion), log_src_crs_grid[0], log_src_crs_grid[-1])
     weights /= weights.sum()
     
     return weights
@@ -143,9 +154,8 @@ def bexvar(log_src_crs_grid, pdfs):
     sampler = ReactiveNestedSampler(['logmean', 'logsigma'], loglike, 
         transform=transform, vectorized=False)
     samples = sampler.run(viz_callback=False)['samples']
+    sampler.print_results()
     log_mean, log_sigma = samples.transpose()
-    
-    print(log_mean.mean(), log_mean.std(), log_sigma.mean(), log_sigma.std())
     
     return log_mean, log_sigma
 
@@ -164,7 +174,7 @@ for band in range(nbands):
     fe = lc['FRACEXP'][:,band]
     rate_conversion = fe * lc['TIMEDEL']
 
-    log_src_crs_grid = lscg_gen(c, bc, bgarea, fe, 100)
+    log_src_crs_grid = lscg_gen(c, bc, bgarea, rate_conversion, 100)
     
     src_posteriors = []
 
@@ -178,8 +188,6 @@ for band in range(nbands):
 
     print("plotting data...")
     cdfs = np.cumsum(src_posteriors, axis=1)
-    for xi, cdf in zip(x, cdfs):
-        lo, mid, hi = 10**np.interp(quantiles, cdf, log_src_crs_grid)
     
     rate_lo, rate_mid, rate_hi = [np.array([10**np.interp(q, cdf, log_src_crs_grid)
         for xi, cdf in zip(x, cdfs)])
