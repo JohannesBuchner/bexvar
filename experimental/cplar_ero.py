@@ -129,9 +129,9 @@ else:
 
 print("band %d" % band)
 lc = lc_all[lc_all['FRACEXP'][:,band] > 0.1]
-bc = lc['BACK_COUNTS'][:,band]
-c = lc['COUNTS'][:,band]
-bgarea = 1. / lc['BACKRATIO']
+bc = lc['BACK_COUNTS'][:,band].value
+c = lc['COUNTS'][:,band].value
+bgarea = np.array(1. / lc['BACKRATIO'].value)
 # length of the time bin
 dt = lc['TIMEDEL']
 assert dt.max() == dt.min()
@@ -140,12 +140,12 @@ dt = dt.min()
 # here we want the starting point:
 x_start = lc['TIME'] - lc['TIME'][0] - lc['TIMEDEL'] / 2.0
 x_end   = lc['TIME'] - lc['TIME'][0] + lc['TIMEDEL'] / 2.0
-x = lc['TIME'] - lc['TIME'][0]
-tsteps = (x_end[1:] - x_end[:-1])
+x = (lc['TIME'] - lc['TIME'][0])
+tsteps = (x_end[1:] - x_end[:-1]).value
 assert (tsteps > 0).all(), np.unique(tsteps)
 assert (bc.astype(int) == bc).all(), bc
 prefix = sys.argv[1] + '-%d-cplar1b' % band
-fe = lc['FRACEXP'][:,band]
+fe = lc['FRACEXP'][:,band].value
 rate_conversion = fe * dt
 #print("tsteps:", tsteps.sum())
 
