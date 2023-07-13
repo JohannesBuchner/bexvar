@@ -193,7 +193,6 @@ stan_variables, method_variables = cmdstancache.run_stan(model_code, data=data,
 for k, v in stan_variables.items():
     print(k, v.shape)
 
-sys.exit(1)
 la = {k:v.shape for k, v in stan_variables.items()}
 paramnames = []
 badlist = ['lp__', 'phi', 'Bphi']
