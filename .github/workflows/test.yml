@@ -25,6 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install PyYAML coveralls rst2html5 cython cmdstancache brokenaxes git+https://github.com/JohannesBuchner/stan_utility.git#egg=stan-utility
           if [ -f conda-requirements.txt ]; then pip install -r conda-requirements.txt; fi 
+          install_cmdstan
       - run: python setup.py install
       - run: coverage run -a scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
       - run: coverage run -a scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
