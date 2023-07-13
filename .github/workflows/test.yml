@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyYAML coveralls rst2html5 cython pystan==2.19.1.1 brokenaxes git+https://github.com/JohannesBuchner/stan_utility.git#egg=stan-utility
+          pip install PyYAML coveralls rst2html5 cython cmdstancache brokenaxes git+https://github.com/JohannesBuchner/stan_utility.git#egg=stan-utility
           if [ -f conda-requirements.txt ]; then pip install -r conda-requirements.txt; fi 
       - run: python setup.py install
       - run: coverage run -a scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
