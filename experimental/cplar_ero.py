@@ -20,13 +20,13 @@ from numpy import log, pi, exp
 import sys
 import tqdm
 from astropy.table import Table
-import stan_utility
+import cmdstancache
 from brokenaxes import brokenaxes
 import corner
 from ultranest.plot import PredictionBand
 
 
-model = stan_utility.compile_model_code("""
+model_code = """
 data {
   int N;
 
@@ -34,9 +34,9 @@ data {
   real dt;
   // number of time step between end of previous time bin and end of current time bin
   // this may be different from dt when there are gaps
-  real<lower=0> tsteps[N-1];
-  int<lower=0> z_obs[N];
-  int<lower=0> B_obs[N];
+  array[N-1] real<lower=0> tsteps;
+  array[N] int<lower=0> z_obs;
+  array[N] int<lower=0> B_obs;
   vector[N] Barearatio;
   vector[N] countrate_conversion;
   vector[N] Bcountrate_conversion;
@@ -47,6 +47,8 @@ data {
   real prior_lognoise_mean;
   real prior_logc_std;
   real prior_lognoise_std;
+  real prior_logtau_mean;
+  real prior_logtau_std;
 }
 transformed data {
   vector[N] logBarearatio = log(Barearatio);
@@ -104,7 +106,7 @@ model {
   B_obs ~ poisson_log(logBy + logBcountrate_conversion);
 
   // source AR process priors:
-  // logtau ~ student_t(2, prior_logtau_mean, prior_logtau_std);
+  logtau ~ normal(prior_logtau_mean, prior_logtau_std);
   logc ~ normal(prior_logc_mean, prior_logc_std);
   lognoise ~ normal(prior_lognoise_mean, prior_lognoise_std);
   logy ~ normal(0, 5); // stay within a reasonable range
@@ -112,7 +114,7 @@ model {
   // comparison to total source region counts
   z_obs ~ poisson_log(logytot);
 }
-""")
+"""
 
 
 np.random.seed(1)
@@ -127,8 +129,11 @@ if len(sys.argv) > 2:
 else:
     band = 0
 
+fracexp = lc_all['FRACEXP'][:,band]
 print("band %d" % band)
-lc = lc_all[lc_all['FRACEXP'][:,band] > 0.1]
+
+print(fracexp.min(), fracexp.max())
+lc = lc_all[fracexp > 0.1 * fracexp.max()]
 bc = lc['BACK_COUNTS'][:,band].value
 c = lc['COUNTS'][:,band].value
 bgarea = np.array(1. / lc['BACKRATIO'].value)
@@ -136,6 +141,7 @@ bgarea = np.array(1. / lc['BACKRATIO'].value)
 dt = lc['TIMEDEL']
 assert dt.max() == dt.min()
 dt = dt.min()
+print("dt:", dt)
 # TIME is the mid point of the light curve bin
 # here we want the starting point:
 x_start = lc['TIME'] - lc['TIME'][0] - lc['TIMEDEL'] / 2.0
@@ -166,7 +172,7 @@ data = dict(
     prior_logc_mean=0, prior_logc_std=5,
     # expected noise level is 10% +- 2 dex
     prior_lognoise_mean=np.log(0.1), prior_lognoise_std=np.log(100),
-    #prior_logtau_mean=np.log(x.max()), prior_logtau_std=np.log(x.max() / (dt)),
+    prior_logtau_mean=np.log(x.max()), prior_logtau_std=3,
     # prefer long correlation time-scales; the data have to convince us that the
     # data points scatter.
     # prior_logtau_mean=np.log(x.max()), prior_logtau_std=10 * np.log(x.max() / dt),
@@ -175,39 +181,25 @@ data = dict(
     #prior_logtau_mean=np.log(dt), prior_logtau_std=np.log(1000),
 )
 
-def init_function(chain=None):
-    # guess good parameters for chain to start
-    guess = dict(
-        # start with short time-scales: all bins independent
-        logtau=np.log(dt / 2),
-        # background count rates; estimated from background counts
-        logBy=np.array(np.log((bc + 0.1) / data['Bcountrate_conversion'])),
-        # average count rate; estimated from counts
-        logc=np.log((c + 0.1) / data['countrate_conversion']).mean(),
-        # minimal noise
-        lognoise=np.log(1e-10),
-        W=np.random.normal(size=N),
-    )
-    print("initial guess:", guess)
-    return guess
-
 # print(c, bc.astype(int), bgarea, rate_conversion, Nsteps.astype(int), dt)
 
 # Continuous Poisson Log-Auto-Regressive 1 with Background
-results = stan_utility.sample_model(model, data, outprefix=prefix,
-    control=dict(adapt_delta=0.99, max_treedepth=12),
+stan_variables, method_variables = cmdstancache.run_stan(model_code, data=data,
+    adapt_delta=0.99, max_treedepth=12,
     #warmup=5000, iter=10000,
-    init=init_function,
     seed=1)
   #control=dict(max_treedepth=14))
 
-la = stan_utility.get_flat_posterior(results)
-samples = []
+for k, v in stan_variables.items():
+    print(k, v.shape)
+
+sys.exit(1)
+la = {k:v.shape for k, v in stan_variables.items()}
 paramnames = []
 badlist = ['lp__', 'phi', 'Bphi']
 #badlist += ['log' + k for k in la.keys()]
 # remove linear parameters, only show log:
-badlist += [k.replace('log', '') for k in la.keys() if 'log' in k and k.replace('log', '') in la.keys()]
+badlist += [k.replace('log', '') for k in stan_variables.keys() if 'log' in k and k.replace('log', '') in stan_variables.keys()]
 
 typical_step = max(np.median(tsteps), dt * 5)
 
@@ -224,14 +216,14 @@ for broken in False, True:
         bax = plt.gca()
     bax.plot(x, c / rate_conversion, 'o ')
     bax.plot(x, bc / bgarea / rate_conversion, 'o ')
-    y = np.exp(results.posterior.logy.values.reshape((-1, N)))
+    y = np.exp(stan_variables['logy'].reshape((-1, N)))
     bax.errorbar(
         x=x, xerr=dt, 
         y=np.median(y, axis=0),
         yerr=np.quantile(y, [0.005, 0.995], axis=0),
         color='k', ls=' ', elinewidth=0.1, capsize=0,
     )
-    By = np.exp(results.posterior.logBy.values.reshape((-1, N))) / bgarea
+    By = np.exp(stan_variables['logBy'].reshape((-1, N))) / bgarea
     bax.errorbar(
         x=x, xerr=dt, 
         y=np.median(By, axis=0),

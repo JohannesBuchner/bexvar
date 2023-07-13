@@ -303,14 +303,16 @@ for k in sorted(stan_variables.keys()):
         plt.legend(title='average')
         plt.savefig(prefix + "_hist_%s.pdf" % k, bbox_inches='tight')
         plt.close()
-        
+
 samples = np.transpose(samples)
-corner.corner(samples, labels=paramnames)
-plt.savefig(prefix + "_corner_log.pdf", bbox_inches='tight')
-plt.close()
-corner.corner(10**(samples), labels=[k.replace('log', '') for k in paramnames])
-plt.savefig(prefix + "_corner.pdf", bbox_inches='tight')
-plt.close()
+if False:
+    print('making corner plots ...')
+    corner.corner(samples, labels=paramnames)
+    plt.savefig(prefix + "_corner_log.pdf", bbox_inches='tight')
+    plt.close()
+    corner.corner(10**(samples), labels=[k.replace('log', '') for k in paramnames])
+    plt.savefig(prefix + "_corner.pdf", bbox_inches='tight')
+    plt.close()
 
 # switch to units of seconds here
 omega = np.linspace(0, 10. / dt, 10000)
@@ -323,14 +325,54 @@ pband2 = PredictionBand(omega)
 
 for tausample, sigma in zip(tqdm.tqdm(stan_variables['tau'].flatten()), stan_variables['noise'].flatten()):
     DT = 1 # unit: seconds
-    phi = exp(-1. / (tausample / DT))
+    phi = exp(-DT / tausample)
     gamma = DT / tausample
     specdens = (2 * pi)**0.5 * sigma**2 / (1 - phi**2) * gamma / (pi * (gamma**2 + omega**2))
-    pband2.add(specdens)
-
+    pband2.add(specdens / x.max() / dt)
+print('factors:', x.max(), dt, len(x))
 pband2.line(color='r')
 pband2.shade(color='r', alpha=0.5)
 pband2.shade(q=0.95/2, color='r', alpha=0.1)
+
+# handle inferred damped random walk realisations here:
+#from astropy.timeseries import LombScargle
+def fourier_periodogram(t, y):
+    N = len(t)
+    frequency = np.fft.fftfreq(N, t[1] - t[0])
+    y_fft = np.fft.fft(y)
+    positive = (frequency > 0)
+    return frequency[positive], (1. / N) * abs(y_fft[positive]) ** 2
+
+#from ducc0.fft import genuine_fht
+#from scipy.ndimage import gaussian_filter
+#f = 1. / np.array(x)[1:][::-1]
+#pbandf = PredictionBand(f)
+#pbandf = PredictionBand(f[len(f) // 2:])
+#pbandf = PredictionBand(f[1::2])
+#pbandf = PredictionBand(1. / dt / (1 + np.arange(len(f[1::2])))[::-1])
+pbandf = None
+t = np.array(x)
+
+for y_realisation in tqdm.tqdm(y):
+    # take the fourier transform of y_realisation
+    #fourier_spectrum_twice = (genuine_fht(y_realisation))**2 * len(x)
+    #fourier_spectrum = fourier_spectrum_twice[: len(fourier_spectrum_twice) // 2]
+    # make a bit smoother
+    #smooth_fourier_spectrum = gaussian_filter(
+    #    fourier_spectrum[1:],
+    #    sigma=2, truncate=100, mode='nearest')
+    #print(smooth_fourier_spectrum.shape)
+    #pbandf.add(smooth_fourier_spectrum)
+    #frequency, power = LombScargle(t, y_realisation, normalization='psd').autopower()
+    frequency, power = fourier_periodogram(t, y_realisation)
+    if pbandf is None:
+        pbandf = PredictionBand(frequency)
+    pbandf.add(power)
+
+#plt.figure()
+pbandf.line(color='navy')
+pbandf.shade(color='navy', alpha=0.5)
+pbandf.shade(q=0.95/2, color='navy', alpha=0.1)
 
 plt.xlabel('Frequency [Hz]')
 plt.ylabel('Power spectral density (PSD)')
@@ -342,13 +384,7 @@ plt.vlines([omega0, omega1], ylo, yhi, ls='--', color='k', alpha=0.5)
 plt.ylim(ylo, yhi)
 #plt.xlim(2 / (N * T), 1000 * 2 / (N * T))
 plt.savefig(prefix + '_F.pdf', bbox_inches='tight')
+#plt.close()
 plt.close()
 
-
-# handle inferred damped random walk realisations here:
-
-for y_realisation in y:
-    # do something
-    pass
-    # for example:
-    # take the fourier transform of y_realisation
+#
