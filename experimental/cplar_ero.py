@@ -190,15 +190,12 @@ stan_variables, method_variables = cmdstancache.run_stan(model_code, data=data,
     seed=1)
   #control=dict(max_treedepth=14))
 
-for k, v in stan_variables.items():
-    print(k, v.shape)
-
-la = {k:v.shape for k, v in stan_variables.items()}
 paramnames = []
 badlist = ['lp__', 'phi', 'Bphi']
 #badlist += ['log' + k for k in la.keys()]
 # remove linear parameters, only show log:
-badlist += [k.replace('log', '') for k in stan_variables.keys() if 'log' in k and k.replace('log', '') in stan_variables.keys()]
+badlist += [k.replace('log', '') for k in stan_variables.keys()
+    if 'log' in k and k.replace('log', '') in stan_variables.keys()]
 
 typical_step = max(np.median(tsteps), dt * 5)
 
@@ -243,22 +240,25 @@ for k, v in sorted(data.items()):
         # convert to base 10 for easier reading
         print("%20s: " % k, v / log(10) if k.startswith('log') else v)
 
+samples = []
+
 print("posteriors:")
-for k in sorted(la.keys()):
-    print('%20s: %.4f +- %.4f' % (k, la[k].mean(), la[k].std()))
-    if k not in badlist and la[k].ndim == 1:
+for k in sorted(stan_variables.keys()):
+    print('%20s: %.4f +- %.4f' % (k, stan_variables[k].mean(), stan_variables[k].std()))
+    if k not in badlist and stan_variables[k].ndim == 1:
         # convert to base 10 for easier reading
-        samples.append(la[k] / log(10) if k.startswith('log') else la[k])
+        samples.append(stan_variables[k] / log(10) if k.startswith('log') else stan_variables[k])
         paramnames.append(k)
-    elif la[k].ndim > 1:
+    elif stan_variables[k].ndim > 1:
         plt.figure()
-        plt.hist(la[k].mean(axis=1), histtype='step', bins=40)
-        plt.hist(la[k].mean(axis=0), histtype='step', bins=40)
+        plt.hist(stan_variables[k].mean(axis=1), histtype='step', bins=40, label='over bins')
+        plt.hist(stan_variables[k].mean(axis=0), histtype='step', bins=40, label='over realisations')
         plt.yscale('log')
         plt.xlabel(k)
+        plt.legend(title='average')
         plt.savefig(prefix + "_hist_%s.pdf" % k, bbox_inches='tight')
         plt.close()
-        
+
 samples = np.transpose(samples)
 print(paramnames)
 corner.corner(samples, labels=paramnames)
@@ -268,22 +268,19 @@ corner.corner(10**(samples), labels=[k.replace('log', '') for k in paramnames])
 plt.savefig(prefix + "_corner.pdf", bbox_inches='tight')
 plt.close()
 
-#stan_utility.plot_corner(results, outprefix="plar1b")
-
-T = (x.max() - x.min()) * 100
-#xf = np.linspace(0, 1.0 / (2.0 * T), 10000)
-#omega = 2 * pi * xf * T
+# switch to units of seconds here
 omega = np.linspace(0, 10. / dt, 10000)
-# longest duration
+# longest duration: entire observation
 omega1 = 1. / x.max()
 # Nyquist frequency: twice the bin duration
 omega0 = 1. / (2 * dt)
 
 pband2 = PredictionBand(omega)
 
-for tausample, sigma in zip(tqdm.tqdm(results.posterior.tau.values.flatten()), results.posterior.noise.values.flatten()):
-    phi = exp(-1. / (tausample / dt))
-    gamma = dt / tausample
+for tausample, sigma in zip(tqdm.tqdm(stan_variables['tau'].flatten()), stan_variables['noise'].flatten()):
+    DT = 1 # unit: seconds
+    phi = exp(-DT / tausample)
+    gamma = DT / tausample
     specdens = (2 * pi)**0.5 * sigma**2 / (1 - phi**2) * gamma / (pi * (gamma**2 + omega**2))
     pband2.add(specdens)
 
@@ -292,7 +289,7 @@ pband2.shade(color='r', alpha=0.5)
 pband2.shade(q=0.95/2, color='r', alpha=0.1)
 
 plt.xlabel('Frequency [Hz]')
-plt.ylabel('Spectral power density')
+plt.ylabel('Power spectral density (PSD)')
 plt.xscale('log')
 plt.yscale('log')
 ylo, yhi = plt.ylim()
