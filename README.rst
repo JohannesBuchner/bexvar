@@ -92,3 +92,7 @@ Contributors include:
 * David Bogensberger
 
 If you use this software, please cite this paper: https://arxiv.org/abs/2106.14529
+
+See also
+--------
+* https://github.com/rarcodia/eRebin for rebinning eROSITA light curves to eroDays
