@@ -19,6 +19,10 @@ import matplotlib.pyplot as plt
 from numpy import log, pi, exp
 import sys
 import tqdm
+import h5py
+import datetime
+from brokenaxes import brokenaxes
+import astropy.time
 from astropy.table import Table
 import cmdstancache
 import corner
@@ -128,6 +132,7 @@ model {
     }
   }
 
+  prior_logBc_std ~ uniform(0, 5);
   logBy ~ normal(prior_logBc_mean, prior_logBc_std);
   B_obs_filtered ~ poisson_log(logBy_filtered);
 
@@ -156,11 +161,13 @@ else:
     band = 0
 
 fracexp = lc_all['FRACEXP'][:,band]
+indices_good_fracexp, = np.where(fracexp > fracexp.max() * 0.1)
 print("band %d" % band)
 
 print(fracexp.min(), fracexp.max())
+# only model part where we have data
 # skip last, because TIMEDEL is different
-lc = lc_all[:-1] # [400:1000]
+lc = lc_all[indices_good_fracexp.min() : min(len(fracexp) - 1, indices_good_fracexp.max() + 1)]
 bc = lc['BACK_COUNTS'][:,band].value
 c = lc['COUNTS'][:,band].value
 bgarea = np.array(1. / lc['BACKRATIO'].value)
@@ -171,9 +178,10 @@ dt = dt.min()
 print("dt:", dt)
 # TIME is the mid point of the light curve bin
 # here we want the starting point:
-x_start = lc['TIME'] - lc['TIME'][0] - lc['TIMEDEL'] / 2.0
-x_end   = lc['TIME'] - lc['TIME'][0] + lc['TIMEDEL'] / 2.0
-x = (lc['TIME'] - lc['TIME'][0])
+t0 = lc['TIME'][0]
+x_start = lc['TIME'] - t0 - lc['TIMEDEL'] / 2.0
+x_end   = lc['TIME'] - t0 + lc['TIMEDEL'] / 2.0
+x = (lc['TIME'] - t0)
 tsteps = (x_end[1:] - x_end[:-1]).value
 assert (tsteps == dt).all(), np.unique(tsteps)
 assert (bc.astype(int) == bc).all(), bc
@@ -182,6 +190,27 @@ fe = lc['FRACEXP'][:,band].value
 rate_conversion = fe * dt
 mask_good = fe > fe.max() * 0.1
 assert (fe[mask_good] > 0).all()
+
+"""
+fig, axs = plt.subplots(2, 1, figsize=(25, 10), sharex=True)
+bax = axs[0]
+bax.plot(lc_all['TIME'], fracexp, 'o ', ms=2)
+bax.plot(lc['TIME'], fe, 's-', ms=2)
+bax.set_xlabel('Time [s]')
+bax.set_ylabel('FRACEXP')
+bax.set_xlim(lc_all['TIME'].min(), lc_all['TIME'].max())
+bax = axs[1]
+bax.plot(lc_all['TIME'], lc_all['COUNTS'][:,band].value, 'o ', ms=2)
+bax.plot(lc['TIME'], c, 's-', ms=2)
+bax.set_xlabel('Time [s]')
+bax.set_ylabel('COUNTS')
+bax.set_ylim(1, None)
+bax.set_yscale('log')
+bax.set_xlim(lc_all['TIME'].min(), lc_all['TIME'].max())
+fig.savefig(prefix + '_fracexp.pdf')
+plt.close()
+"""
+
 #print("tsteps:", tsteps.sum())
 
 N = len(x_start)
@@ -234,11 +263,11 @@ def init_function(seed):
 # Continuous Poisson Log-Auto-Regressive 1 with Background
 stan_variables, method_variables = cmdstancache.run_stan(
     model_code, data=data,
-    #adapt_delta=0.95, max_treedepth=12,
+    # adapt_delta=0.98, max_treedepth=12,
     #show_console=True,
     refresh=10,
     inits=init_function(seed),
-    #warmup=5000, iter=10000,
+    # iter_warmup=2000, iter_sampling=1000,
     seed=seed)
 
 paramnames = []
@@ -250,34 +279,80 @@ badlist += [k.replace('log', '') for k in stan_variables.keys()
 
 typical_step = max(np.median(tsteps), dt * 5)
 
-fig = plt.figure(figsize=(15, 5))
-bax = plt.gca()
-bax.plot(x[mask_good], ((c + 0.1) / rate_conversion)[mask_good], 'x ', ms=4, label='source count rate')
-bax.plot(x[mask_good], ((bc + 0.1) / bgarea / rate_conversion)[mask_good], '+ ', ms=4, label='background count rate')
-y = np.exp(stan_variables['logy'].reshape((-1, N)))
-bax.plot(x, np.median(y, axis=0), color='k')
-bax.fill_between(
-    x,
-    np.quantile(y, 0.005, axis=0),
-    np.quantile(y, 0.995, axis=0),
-    color='k', alpha=0.4, label='source log-AR(1) model',
-)
-By = np.exp(stan_variables['logBy'].reshape((-1, N))) / bgarea
-bax.plot(x[mask_good], np.median(By, axis=0)[mask_good], color='orange')
-bax.fill_between(
-    np.where(mask_good, x, np.nan),
-    np.where(mask_good, np.quantile(By, 0.005, axis=0), np.nan),
-    np.where(mask_good, np.quantile(By, 0.995, axis=0), np.nan),
-    color='orange', alpha=0.4, label='background LogNormal model',
-)
-bax.set_yscale('log')
-bax.set_xlabel('Time [s]')
-bax.set_ylabel('Count rate [cts/s]')
-#bax.set_ylim(min(((bc + 0.1) / bgarea / rate_conversion)[mask_good].min(), ((c + 0.1) / rate_conversion)[mask_good].min()) / 10, None)
-bax.set_xlim(0, x.max())
-bax.legend()
-fig.savefig(prefix + '_t.pdf')
-plt.close(fig)
+def tomjd(t_seconds):
+    return (astropy.time.Time(51543.875, format='mjd') + (t_seconds + t0) * astropy.units.s).mjd - mjd0
+
+mjd0 = 58828
+x_mjd = tomjd(x.value)
+print(x_mjd, x.value)
+
+for broken in False, True:
+    print("plotting time series...")
+    fig = plt.figure(figsize=(15, 5))
+    if broken:
+        i, = np.where((x_end[mask_good][1:] - x_end[mask_good][:-1]).value > typical_step * 20)
+        xlims = list(
+            zip([tomjd(x_start.value[mask_good][0] - 3 * typical_step)] + list(tomjd(x_start.value[mask_good][i+1] - 3 * typical_step)),
+            list(tomjd(x_end.value[mask_good][i] + 3 * typical_step)) + [tomjd(x_end.value[mask_good][-1] + 3 * typical_step)]))
+        print(xlims)
+        bax = brokenaxes(xlims=xlims, hspace=0.05)
+    else:
+        bax = plt.gca()
+
+    bax.plot(x_mjd[mask_good], ((c + 0.1) / rate_conversion)[mask_good], 'x ', ms=4, label='source count rate', color='tab:blue')
+    bax.plot(x_mjd[mask_good], ((bc + 0.1) / bgarea / rate_conversion)[mask_good], '+ ', ms=4, label='background count rate', color='gray')
+    y = np.exp(stan_variables['logy'].reshape((-1, N)))
+    bax.plot(x_mjd, np.median(y, axis=0), color='navy')
+    bax.fill_between(
+        x_mjd,
+        np.quantile(y, 0.005, axis=0),
+        np.quantile(y, 0.995, axis=0),
+        color='navy', alpha=0.4, label='source log-AR(1) model',
+    )
+    By = np.exp(stan_variables['logBy'].reshape((-1, N))) / bgarea
+    bax.plot(x_mjd[mask_good], np.median(By, axis=0)[mask_good], color='gray')
+    bax.fill_between(
+        np.where(mask_good, x_mjd, np.nan),
+        np.where(mask_good, np.quantile(By, 0.005, axis=0), np.nan),
+        np.where(mask_good, np.quantile(By, 0.995, axis=0), np.nan),
+        color='gray', alpha=0.4, label='background LogNormal model',
+    )
+    bax.set_yscale('log')
+    bax.set_xlabel('Time [MJD - %d]' % mjd0)
+    bax.set_ylabel('Count rate [cts/s]')
+    bax.set_title(
+        'ID=%s <source_counts>:%.2f #=%d' % (
+            filename.replace('.fits', '').replace('020_LightCurve_', ''),
+            c.mean(), len(c)))
+
+    if broken:
+        bax.set_ylim(
+          ((c + 0.1) / rate_conversion)[mask_good].min(),
+          ((c + 0.1) / rate_conversion)[mask_good].max(),
+        )
+        ymax = ((c + 0.1) / rate_conversion)[mask_good].max()
+    else:
+        bax.set_xlim(x_mjd.min(), x_mjd.max())
+        bax.set_ylim(bax.get_ylim())
+        ymax = bax.set_ylim()[1]
+    
+    for year in np.arange(2020, 2023, 0.5):
+        year_mjd = (astropy.time.Time(datetime.datetime(int(year), int(year * 12) % 12 + 1, 1), format='datetime')).mjd - mjd0
+        if x_mjd.min() < float(year_mjd) < x_mjd.max():
+            try:
+                bax.text(
+                    year_mjd,
+                    ymax * 0.99,
+                    '%s ' % (year), rotation=90, size=6, ha='center', va='top',
+                )
+            except ValueError:
+                pass
+    bax.legend()
+    if broken:
+        fig.savefig(prefix + '_t_s.pdf')
+    else:
+        fig.savefig(prefix + '_t.pdf')
+    plt.close()
 
 print("priors:")
 for k, v in sorted(data.items()):
@@ -287,6 +362,12 @@ for k, v in sorted(data.items()):
 
 samples = []
 
+with h5py.File(prefix + "_post.h5", 'w') as fout:
+    for k, v in stan_variables.items():
+        if k not in badlist:
+            print("storing", k)
+            fout.create_dataset(k, data=v, shuffle=True, compression='gzip')
+
 print("posteriors:")
 for k in sorted(stan_variables.keys()):
     print('%20s: %.4f +- %.4f' % (k, stan_variables[k].mean(), stan_variables[k].std()))
@@ -294,7 +375,7 @@ for k in sorted(stan_variables.keys()):
         # convert to base 10 for easier reading
         samples.append(stan_variables[k] / log(10) if k.startswith('log') else stan_variables[k])
         paramnames.append(k)
-    elif stan_variables[k].ndim > 1:
+    elif stan_variables[k].ndim > 1 and False:
         plt.figure()
         plt.hist(stan_variables[k].mean(axis=1), histtype='step', bins=40, label='over bins')
         plt.hist(stan_variables[k].mean(axis=0), histtype='step', bins=40, label='over realisations')
@@ -314,6 +395,14 @@ if False:
     plt.savefig(prefix + "_corner.pdf", bbox_inches='tight')
     plt.close()
 
+print("saving samples...")
+np.savetxt(
+  prefix + 'LC_netrate.txt.gz',
+  np.transpose(np.vstack((lc['TIME'].reshape((1, -1)), x.reshape((1, -1)), y[::40]))),
+  fmt='%.5f', #delimiter=',',
+)
+
+print("plotting fourier transforms ...")
 # switch to units of seconds here
 omega = np.linspace(0, 10. / dt, 10000)
 # longest duration: entire observation
@@ -384,7 +473,6 @@ plt.vlines([omega0, omega1], ylo, yhi, ls='--', color='k', alpha=0.5)
 plt.ylim(ylo, yhi)
 #plt.xlim(2 / (N * T), 1000 * 2 / (N * T))
 plt.savefig(prefix + '_F.pdf', bbox_inches='tight')
-#plt.close()
 plt.close()
 
 #
