@@ -41,7 +41,6 @@ clean-doc:
 test: ## run tests quickly with the default Python
 	python scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
 	python scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
-	python experimental/cplar_ero.py examples/red/020_LightCurve_00022.fits.gz
 	rst2html5.py README.rst > README.html
 
 test-all: ## run tests on every Python version with tox
