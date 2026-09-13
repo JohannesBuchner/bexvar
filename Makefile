@@ -50,7 +50,8 @@ show: flatdist.txt.gz_out_gauss/plots/corner.pdf
 	xdg-open $^
 
 coverage: ## check code coverage quickly with the default Python
-	coverage run --source snowline -m pytest
+	coverage run --source snowline scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
+	coverage run --append --source snowline scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
 	coverage report -m
 	coverage html
 	$(BROWSER) htmlcov/index.html
