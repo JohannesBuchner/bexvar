@@ -66,6 +66,3 @@ replace = "__version__ = '{new_version}'"
 
 [tool.pytest.ini_options]
 collect_ignore = "['setup.py']"
-
-[tool.pydocstyle]
-add-ignore = "D107"
