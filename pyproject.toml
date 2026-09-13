@@ -7,7 +7,8 @@ name = "bexvar"
 version = "1.1.1"
 description = "Bayesian excess variance for Poisson data time series with backgrounds."
 readme = {file = "README.rst", content-type = "text/x-rst"}
-license = {text = "Affero GNU General Public License v3"}
+license = "AGPL-3.0-or-later"
+license-files = ["COPYING"]
 authors = [
     {name = "Johannes Buchner", email = "johannes.buchner.acad@gmx.com"}
 ]
@@ -15,7 +16,6 @@ keywords = ["bexvar"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: English",
     "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: 3.6",
@@ -37,9 +37,8 @@ Homepage = "https://github.com/JohannesBuchner/bexvar"
 Source = "https://github.com/JohannesBuchner/bexvar"
 Documentation = "https://github.com/JohannesBuchner/bexvar"
 
-[project.scripts]
-bexvar_ero = "scripts.bexvar_ero:main"
-quick_ero = "scripts.quick_ero:main"
+[tool.setuptools.packages.find]
+include = []
 
 [tool.setuptools]
 script-files = ["scripts/bexvar_ero.py", "scripts/quick_ero.py"]
