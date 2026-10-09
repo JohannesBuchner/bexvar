@@ -12,21 +12,20 @@ jobs:
     #    python-version: [3.8]
 
     steps:
-      - uses: actions/checkout@v2
- 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.8
-          # python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyYAML coveralls rst2html5 cython cmdstancache brokenaxes git+https://github.com/JohannesBuchner/stan_utility.git#egg=stan-utility
+          pip install PyYAML coveralls rst2html5 cython cmdstancache brokenaxes
           if [ -f conda-requirements.txt ]; then pip install -r conda-requirements.txt; fi 
           install_cmdstan
-      - run: python setup.py install
+      - run: pip install .
       - run: coverage run -a scripts/quick_ero.py examples/*/020_LightCurve_*.fits.gz
       - run: coverage run -a scripts/bexvar_ero.py examples/constant/020_LightCurve_00001.fits.gz
       - run: coverage run -a experimental/cplar_ero.py examples/red/020_LightCurve_00022.fits.gz
